@@ -1,0 +1,97 @@
+#!/bin/bash
+MS=$1         #Specify the type of mobile ions (working ions, hereafter WI)
+export LC_NUMERIC="en_US.UTF-8"
+FILENAME=XDATCAR
+OUTFILE=MD_PATHS.vasp
+VERSION=1.0.0
+DATE=$(date --rfc-3339='date')
+if [ "$MS" == "clear" ]; then
+echo "THE WORKING ION IS NOT SPECIFIED"
+exit 1
+fi
+rm -rf *.tmp
+#=================================================================================
+#
+#                              MAIN INITIAL PARAMETERS
+START=1
+ATOM_COUNTER=0
+NATOMS=0
+#=================================================================================
+clear
+echo " "
+echo " "
+echo "============================================="
+echo "  M    M  DDD     PPP    AA   TTTTTTT H   H  "
+echo "  MM  MM  D  D    P  P  A  A     T    H   H  "
+echo "  M MM M  D  D    PPP  A    A    T    HHHHH  "
+echo "  M    M  D  D    P    AAAAAA    T    H   H  "
+echo "  M    M  DDD ___ P    A    A    T    H   H  "
+echo "                                             "
+echo "                                v."$VERSION" "
+echo "============================================="
+echo "                                             "
+echo "                  ***                        "
+echo "Written by Artem Kabanov (artkabanov@mail.ru)"
+echo "                  2025                       "
+echo "                                             "
+echo "============================================="
+echo "  "
+echo "  "
+if [ ! -s XDATCAR ]; then
+echo "== ERROR! XDATCAR is absent. Nothing to do.== "
+exit 1
+fi
+if [ ! -s POSCAR ]; then
+echo "== ERROR! POSCAR is absent. Nothing to do.== "
+exit 1
+fi
+if [ ! -s INCAR ]; then
+echo "== ERROR! INCAR is absent. Nothing to do.== "
+exit 1
+fi
+echo "                          START JOB                          "
+#==================================================================
+#                  PREPARATION OF NECESSARY FILES
+#==================================================================
+NSPEC=`head -n 7 $FILENAME | tail -n 1 | wc -w`;
+echo " "
+echo " WORKING DIRECTORY:" "$(pwd)"
+echo " WORKING FILE:" $FILENAME
+echo " "
+echo " STOICHIOMETRY: Atom type   Number  Potential"
+for i in $(seq 1 $NSPEC)
+	do
+	SUFFIX1=`head -n 6 $FILENAME | tail -n 1 | awk -v n=$i '{print$n}'` #Atom specie name
+	SUFFIX2=`head -n 7 $FILENAME | tail -n 1 | awk -v n=$i '{print$n}'` #Number of atoms
+	START=$(($START+$SUFFIX2))
+	if [ "$SUFFIX1" = "$MS" ]; then
+	TRUE_START=$(($START-$SUFFIX2))
+	TRUE_FIN=$(($START-1))
+	ATOM_COUNTER=$SUFFIX2
+	fi
+	echo "                  " $SUFFIX1 "       " $SUFFIX2 "      " $FILEFLAG #control line
+	echo "                -----------------------------" 
+	done
+#==================================================================
+#                         LINE EXTRACTION
+#==================================================================
+direct_lines=$(grep -n "Direct" "$FILENAME" | cut -d: -f1)
+NBLOCK=`echo $direct_lines | wc -w`
+NATOMS=`echo "scale=3; $NBLOCK*$ATOM_COUNTER" | bc -l`
+#NATOMS=$(($NBLOCK*$ATOM_COUNTER))
+counter=1
+echo "$direct_lines" | while read direct_line; do
+start_line=$((direct_line + $TRUE_START))
+end_line=$((direct_line + $TRUE_FIN))
+sed -n "${start_line},${end_line}p" "$FILENAME" >> out.tmp
+counter=$((counter + 1))
+done
+#==================================================================
+echo "N_ADD_ATOMS =  "$NATOMS
+cat $FILENAME | head -n 5 >> header.tmp
+echo " "$MS >> header.tmp
+echo " "$NATOMS >> header.tmp
+cat header.tmp out.tmp > MD_paths.vasp
+
+rm -rf *.tmp
+exit 1
